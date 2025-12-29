@@ -8,7 +8,8 @@ interface SignalCardProps {
 }
 
 export default function SignalCard({ signal, isNew }: SignalCardProps) {
-    const isPositive = signal.price_move_pct > 0
+    const priceMove = signal.price_move_pct || 0
+    const isPositive = priceMove > 0
     const confidence = signal.confidence || 'medium'
 
     const confidenceColors = {
@@ -18,15 +19,27 @@ export default function SignalCard({ signal, isNew }: SignalCardProps) {
     }
 
     const formatTime = (ts: number) => {
+        if (!ts || isNaN(ts)) return 'Unknown'
         const date = new Date(ts * 1000)
+        if (isNaN(date.getTime())) return 'Invalid Date'
         return date.toLocaleTimeString()
     }
 
     const formatMoney = (amount: number) => {
-        if (amount === undefined || amount === null) return '$0'
+        if (amount === undefined || amount === null || isNaN(amount)) return '$0'
         if (amount >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`
         if (amount >= 1000) return `$${(amount / 1000).toFixed(0)}K`
         return `$${amount.toFixed(0)}`
+    }
+
+    const formatPercent = (pct: number) => {
+        if (pct === undefined || pct === null || isNaN(pct)) return '0.0'
+        return (Math.abs(pct) * 100).toFixed(1)
+    }
+
+    const formatPrice = (price: number) => {
+        if (price === undefined || price === null || isNaN(price)) return '0.000'
+        return price.toFixed(3)
     }
 
     return (
@@ -75,15 +88,15 @@ export default function SignalCard({ signal, isNew }: SignalCardProps) {
                 <div>
                     <p className="text-gray-500 text-xs mb-1">Price</p>
                     <p className="text-lg">
-                        <span className="text-gray-400">${signal.price_before?.toFixed(3)}</span>
+                        <span className="text-gray-400">${formatPrice(signal.price_before)}</span>
                         <span className="text-gray-600 mx-1">→</span>
-                        <span className="text-white">${signal.price_after?.toFixed(3)}</span>
+                        <span className="text-white">${formatPrice(signal.price_after)}</span>
                     </p>
                 </div>
                 <div>
                     <p className="text-gray-500 text-xs mb-1">Impact</p>
                     <p className={`text-xl font-bold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
-                        {isPositive ? '↑' : '↓'} {(Math.abs(signal.price_move_pct) * 100).toFixed(1)}%
+                        {isPositive ? '↑' : '↓'} {formatPercent(priceMove)}%
                     </p>
                 </div>
             </div>
