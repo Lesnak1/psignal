@@ -1,8 +1,17 @@
 import { NextRequest } from 'next/server'
-import { subscribe } from '@/lib/signals'
+import { Signal } from '@/lib/types'
 
-export const runtime = 'nodejs'
+export const runtime = 'edge'
 export const dynamic = 'force-dynamic'
+
+// In-memory subscribers (shared with signals API via global)
+declare global {
+    var sseSubscribers: Set<(signal: Signal) => void>
+}
+
+if (!global.sseSubscribers) {
+    global.sseSubscribers = new Set()
+}
 
 // Server-Sent Events stream
 export async function GET(request: NextRequest) {
@@ -13,15 +22,18 @@ export async function GET(request: NextRequest) {
             // Send initial connection message
             controller.enqueue(encoder.encode('data: {"connected": true}\n\n'))
 
-            // Subscribe to new signals
-            const unsubscribe = subscribe((signal) => {
+            // Create callback for this connection
+            const callback = (signal: Signal) => {
                 try {
                     const data = JSON.stringify(signal)
                     controller.enqueue(encoder.encode(`data: ${data}\n\n`))
                 } catch (e) {
                     console.error('Stream error:', e)
                 }
-            })
+            }
+
+            // Subscribe
+            global.sseSubscribers.add(callback)
 
             // Keep connection alive with heartbeat
             const heartbeat = setInterval(() => {
@@ -35,7 +47,7 @@ export async function GET(request: NextRequest) {
             // Cleanup on close
             request.signal.addEventListener('abort', () => {
                 clearInterval(heartbeat)
-                unsubscribe()
+                global.sseSubscribers.delete(callback)
             })
         },
     })

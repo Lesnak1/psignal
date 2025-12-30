@@ -4,6 +4,15 @@ import { Signal } from '@/lib/types'
 // In-memory storage (Vercel serverless)
 let signals: Signal[] = []
 
+// SSE subscribers (global for sharing with stream route)
+declare global {
+    var sseSubscribers: Set<(signal: Signal) => void>
+}
+
+if (!global.sseSubscribers) {
+    global.sseSubscribers = new Set()
+}
+
 // GET - Fetch all signals
 export async function GET() {
     return NextResponse.json({ signals })
@@ -35,6 +44,15 @@ export async function POST(request: NextRequest) {
         signals.unshift(signal)
         signals = signals.slice(0, 50)
 
+        // Broadcast to SSE subscribers
+        global.sseSubscribers.forEach(callback => {
+            try {
+                callback(signal)
+            } catch (e) {
+                console.error('SSE broadcast error:', e)
+            }
+        })
+
         console.log(`📡 New signal: ${signal.title} - $${signal.trade_amount_usd}`)
 
         return NextResponse.json({
@@ -56,3 +74,4 @@ export async function DELETE() {
     signals = []
     return NextResponse.json({ success: true, message: 'Signals cleared' })
 }
+
